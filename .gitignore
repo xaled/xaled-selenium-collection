@@ -4,6 +4,7 @@
 out/
 data/
 geckodriver
+chromedriver
 
 
 # Byte-compiled / optimized / DLL files
