@@ -6,8 +6,6 @@
 #   - chromedriver https://sites.google.com/a/chromium.org/chromedriver/downloads
 #   - selenium, pyquery (pip3 install)
 #   - kutils https://github.com/xaled/kutils
-#   - change aliexpress login information (EMAIL and PASS constants)
-#   - if necessary change DRIVER_PATH and ORDERS_DB_PATH
 import time
 from pyquery import PyQuery as pq
 from selenium import webdriver
@@ -17,14 +15,24 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from kutils.json_min_db import JsonMinConnexion
+from kutils.logs import configure_logging
+# from xaled_selenium import init_driver
+import logging
+from xaled_selenium.args import parse_args, get_additional_argument
 
+
+logger = logging.getLogger(__name__)
 UA_STRING = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:57.0) Gecko/20100101 Firefox/57.0"
-EMAIL = 'XXXXX@YYYYY.com'
-PASS = 'XXXXX'
-DRIVER_TYPE = "Chrome"
-DRIVER_PATH = "./chromedriver"
-ORDERS_DB_PATH = 'orders.data.json'
-PROTECTION_EXTENSION_MSG = "please extend protection for another 30 days"
+# EMAIL = 'XXXXXX'
+# PASS = 'YYYYYYY'
+# DRIVER_TYPE = "Chrome"
+# DRIVER_PATH = "./chromedriver"
+
+DEFAULT_ORDERS_DB_PATH = 'orders.data.json'
+DEFAULT_PROTECTION_EXTENSION_MSG = "please extend protection for another 30 days"
+
+
+# PROTECTION_EXTENSION = True
 
 
 def update_order(order):
@@ -173,7 +181,7 @@ def send_protection_extension_request(order_id):
         driver.get(order_url)
         driver.switch_to_frame(driver.find_element_by_id("msgDetailFrame"))
         driver.find_element_by_xpath("//*[@id=\"message-detail-textarea\"]").send_keys(
-            PROTECTION_EXTENSION_MSG)
+            args.protection_message)
         # driver.find_element_by_id("message-detail-textarea").send_keys(PROTECTION_EXTENSION_MSG)
         driver.find_element_by_id("send-message").click()
         print("sent protection extension requests for order_id: ", order_id)
@@ -199,7 +207,7 @@ def parse_days_lefts(status_days_left):
     return sum
 
 
-def init_driver(drivertype, driver_path=None):
+def init_driver_(drivertype="Chrome", driver_path="./chromedriver"):
     if drivertype == "Chrome":
         from selenium.webdriver.chrome.options import Options
         opts = Options()
@@ -219,14 +227,25 @@ def init_driver(drivertype, driver_path=None):
 
 
 if __name__ == "__main__":
-    data = JsonMinConnexion(ORDERS_DB_PATH, template={'order_ids': [], 'orders': {}})
-    driver = init_driver(DRIVER_TYPE, DRIVER_PATH)
-    login(EMAIL, PASS)
+    configure_logging(modules=['xaled_selenium'])
+    additional_arguments = list()
+    additional_arguments.append(get_additional_argument('-u', '--user', required=True))
+    additional_arguments.append(get_additional_argument('-p', '--password', required=True))
+    additional_arguments.append(get_additional_argument('--db-path', default=DEFAULT_ORDERS_DB_PATH))
+    additional_arguments.append(get_additional_argument('-P', '--protection', action='store_true'))
+    additional_arguments.append(
+        get_additional_argument('--protection-message', default=DEFAULT_PROTECTION_EXTENSION_MSG))
+    args = parse_args(additional_argument=additional_arguments)
+
+    data = JsonMinConnexion(args.db_path, template={'order_ids': [], 'orders': {}})
+    driver = init_driver_()
+    # driver = init_driver(drivertype=args.driver_type, driver_path=args.driver_path)
+    login(args.user, args.password)
 
     orders = get_orders()
     for o in orders:
         tt = parse_days_lefts(o["status_days_left"])
-        if 86400 < tt < 14 * 86400:  # 2 weeks
+        if args.protection and 86400 < tt < 14 * 86400:  # 2 weeks
             send_protection_extension_request(o['order_id'])
         elif 0 < tt <= 86400:
             print("- ORDER ABOUT TO EXPIRE; %s (%s)" % (o['product_list'][0]['title'][:50], o['status_days_left']))
