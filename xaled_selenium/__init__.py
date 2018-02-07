@@ -1,9 +1,10 @@
 from selenium import webdriver
+from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 import logging
 
 logger = logging.getLogger(__name__)
 
-def init_driver(json_server=False, headless=False, drivertype='firefox', driver_path=None, proxy=None):
+def init_driver(headless=False, drivertype='firefox', driver_path=None, proxy=None):
     global browser
 
     # Display
@@ -13,6 +14,8 @@ def init_driver(json_server=False, headless=False, drivertype='firefox', driver_
         # logger.info("starting display..")
         display.start()
         logger.info("Headless display started.")
+
+
 
 
     drivertype = drivertype.lower()
@@ -34,29 +37,19 @@ def init_driver(json_server=False, headless=False, drivertype='firefox', driver_
     else:
         raise Exception("Invalid Driver Type:" + drivertype)
 
-    if json_server:
-        pass # TODO: json_server
-        # server = JsonServerSocket(socket_path, callback=server_callback)
-        # server.bind()
-        # print("binded to %s" % socket_path)
-        # try:
-        #     while True:
-        #         try:
-        #             print("waiting for connection")
-        #             connection, client_address = server.accept()
-        #             print("got connection")
-        #             while connection.receive_call():
-        #                 pass
-        #         except KeyboardInterrupt:
-        #             print("shutting down...")
-        #             break
-        #         except Exception as e:
-        #             logger.error("Error in selenium server: %s" % (str(e)), exc_info=True)
-        #             server.reconnect()
-        #         finally:
-        #             pass
-        # finally:
-        #     server.close()
-
     # driver.set_window_size(1366, 680)
+    return driver
+
+def firefox_proxy(proxy="127.0.0.1:8080", executable_path='./geckodriver'):
+    proxy_dict = {
+        'proxyType': 'MANUAL',
+        'httpProxy': proxy,
+        'ftpProxy': proxy,
+        'sslProxy': proxy,
+        'noProxy': []
+    }
+    caps = DesiredCapabilities.FIREFOX.copy()
+    caps['acceptInsecureCerts'] = True
+    caps['proxy'] = proxy_dict
+    driver = webdriver.Firefox(executable_path=executable_path, capabilities=caps)
     return driver
