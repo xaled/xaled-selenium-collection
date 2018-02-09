@@ -1,11 +1,6 @@
 #!/usr/bin/python3
 # author:  xaled (https://github.com/xaled)
 # credits: https://github.com/pradyumnac/AliexpressOrders
-# license: MIT
-# requirements:
-#   - chromedriver https://sites.google.com/a/chromium.org/chromedriver/downloads
-#   - selenium, pyquery (pip3 install)
-#   - kutils https://github.com/xaled/kutils
 import time
 from pyquery import PyQuery as pq
 from selenium import webdriver
@@ -16,7 +11,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from kutils.json_min_db import JsonMinConnexion
 from kutils.logs import configure_logging
-# from xaled_selenium import init_driver
+from xaled_selenium import get_display
 import logging
 from xaled_selenium.args import parse_args, get_additional_argument
 
@@ -238,6 +233,8 @@ if __name__ == "__main__":
     args = parse_args(additional_argument=additional_arguments)
 
     data = JsonMinConnexion(args.db_path, template={'order_ids': [], 'orders': {}})
+    if args.headless:
+        display = get_display(size=(1500, 800))
     driver = init_driver_()
     # driver = init_driver(drivertype=args.driver_type, driver_path=args.driver_path)
     login(args.user, args.password)
@@ -251,3 +248,11 @@ if __name__ == "__main__":
             print("- ORDER ABOUT TO EXPIRE; %s (%s)" % (o['product_list'][0]['title'][:50], o['status_days_left']))
         if o['tracking_status'] == 'Delivered' and o['status'] != 'Finished':
             print("- ORDER DELIVERED; %s (%s)" % (o['product_list'][0]['title'][:50], o['status_days_left']))
+
+    if args.verbose:
+        print("\nlist of retrieved orders:")
+        for o in orders:
+            print("- %s: %s (%s)" % (o['product_list'][0]['title'][:50],o['status'], o['status_days_left']))
+    driver.quit()
+    if args.headless:
+        display.stop()
