@@ -3,7 +3,7 @@ import signal
 import logging
 import threading
 # from kutils.json_ipc import JsonClientSocket
-from kutils.json_ipc import JsonServerSocket
+from kutils.json_ipc import JsonServerMaster, JsonClientSocket
 from xaled_selenium.config import MITMDUMP, MITMP_SCRIPT
 logger = logging.getLogger(__name__)
 
@@ -39,8 +39,7 @@ logger = logging.getLogger(__name__)
 #     def get_intercept_data(self):
 #         return self.client.call_function('get_intercept_data')
 
-
-class Proxy:
+class Proxy(JsonServerMaster):
     def __init__(self, port=8080, json_ipc_socket="proxy-socket", mitmp_script=MITMP_SCRIPT, domain='', paths=list()):
         self.port = port
         self.json_ipc_socket = json_ipc_socket
@@ -54,52 +53,37 @@ class Proxy:
         self.domain = domain
         self.paths = paths
         self.intercept_data = {}
+        super().__init__(json_ipc_socket)
+        self.mitmprocess = self.start_mitmpdump()
 
-    def server_main(self):
-        self.server = JsonServerSocket(self.json_ipc_socket, self.server_callback)
-        self.server.bind()
-        while self.up:
-            try:
-                connection, client_address = self.server.accept()
-                while connection.receive_call():
-                    pass
-            except KeyboardInterrupt:
-                try:
-                    self.server.close()
-                finally:
-                    raise
-            except Exception as e:
-                logger.error("Error in control server: %s", e, exc_info=True)
-                if connection is not None:
-                    try:
-                        connection.close()
-                    finally:
-                        self.server.reconnect()
+    def start_mitmpdump(self):
+        devnull = open('/dev/null', 'w')
+        p = subprocess.Popen([MITMDUMP, '-q', '-s', self.mitmp_script, '-p', str(self.port)], stdout=devnull,
+                                        shell=False)
+        return p
 
-    def server_callback(self, function, arguments):
-        if function == 'get_intercept_params':
-            return {'domain': self.domain, 'paths': self.paths}
-        elif function == 'set_intercept_data':
-            self.intercept_data[arguments['path']] = arguments['content']
-        else:
-            return
-
-    def start(self):
-        t = threading.Thread(target=self.server_main)
-        t.setDaemon(True)
-        t.start()
-        # devnull = open('/dev/null', 'w')
-        # self.process = subprocess.Popen([MITMDUMP, '-q', '-s', self.mitmp_script, '-p', self.port], stdout=devnull,
-        #                                 shell=False)
-        # return self.process
-
-    def close(self):
-        self.up =  False
+    def stop(self):
         try:
-            self.process.send_signal(signal.SIGINT)
-            self.server.close()
+            self.mitmprocess.send_signal(signal.SIGINT)
+            super().stop() #TODO: fix kutils (JsonServerMaster.stop) a better way for server to shutdown and tell clients to quit
+            # if self.up:
+            #     self.up = False
+            #     # os.kill(os.getpid(), signal.SIGINT)
+            #     try:
+            #         client = JsonClientSocket(self.server_address)
+            #         client.connect()
+            #         # client.quit() # TODO: remove this line
+            #     except:
+            #         pass
         except:
             pass
+
+    def get_intercept_params(self):
+        return {'domain': self.domain, 'paths': self.paths}
+
+    def set_intercept_data(self, path, content):
+        print('set_intercept_data:',id(self.intercept_data))
+        self.intercept_data[path] = content
 
     def set_intercept_params(self, domain, paths):
         self.domain = domain

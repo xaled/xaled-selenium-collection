@@ -7,4 +7,5 @@ else:
 
 MITMP_SCRIPT = join(SCRIPT_DIR, "json_ipc_proxy.py")
 MITMDUMP = '/usr/local/bin/mitmdump'
-
+DEFAULT_CHROME_DRIVER_PATH = './chromedriver'
+DEFAULT_FIREFOX_DRIVER_PATH = './geckodriver'
