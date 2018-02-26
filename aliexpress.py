@@ -241,6 +241,8 @@ if __name__ == "__main__":
 
     orders = get_orders()
     for o in orders:
+        if o['status'].strip() in ['Awaiting Shipment', 'Finished', 'Fund Processing']: 
+            continue  # ignore non shipped and finished orders
         tt = parse_days_lefts(o["status_days_left"])
         if args.protection and 86400 < tt < 14 * 86400:  # 2 weeks
             send_protection_extension_request(o['order_id'])
