@@ -186,7 +186,7 @@ def send_protection_extension_request(order_id):
 
 def parse_days_lefts(status_days_left):
     if status_days_left == '':
-        return -1.0
+        return 3153600000.0
     arr = status_days_left.split(':')[1].split()
     sum = 0.0
     for i in range(len(arr) // 2):
@@ -244,8 +244,11 @@ if __name__ == "__main__":
         if o['status'].strip() in ['Awaiting Shipment', 'Finished', 'Fund Processing']: 
             continue  # ignore non shipped and finished orders
         tt = parse_days_lefts(o["status_days_left"])
-        if args.protection and 86400 < tt < 14 * 86400:  # 2 weeks
-            send_protection_extension_request(o['order_id'])
+        if 86400 < tt < 14 * 86400:  # 2 weeks
+            if args.protection:
+                print("- SENDING PROECTECTION EXTENSION REQUEST FOR ORDER: %s (%s)"% (o['product_list'][0]['title'][:50], o['status_days_left']))
+            else:
+                print("- NOT SENDING PROECTECTION EXTENSION REQUEST FOR ORDER: %s (%s)"% (o['product_list'][0]['title'][:50], o['status_days_left']))
         elif 0 < tt <= 86400:
             print("- ORDER ABOUT TO EXPIRE; %s (%s)" % (o['product_list'][0]['title'][:50], o['status_days_left']))
         if o['tracking_status'] == 'Delivered' and o['status'] != 'Finished':
