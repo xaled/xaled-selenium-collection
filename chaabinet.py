@@ -13,6 +13,7 @@ from kutils.logs import configure_logging
 logger = logging.getLogger(__name__)
 DEFAULT_DB_PATH = "chaabinet.data.json"
 
+
 def login(user, password):
     global data, driver, proxy
     proxy.set_intercept_params('bpnet.gbp.ma',
@@ -24,31 +25,34 @@ def login(user, password):
     driver.find_element_by_id("Password").send_keys(password)
     driver.find_element_by_id("btnLogin").click()
 
+
 def parse_operations():
     global data, driver, proxy
-    slept = 0
-    while True:  # TODO: don't know why!
-        intercept_data = proxy.intercept_data
-        if len(intercept_data) == 2 or slept > 10:
-            break
-        else:
-            logger.info("waiting 2s for intercept data")
-            time.sleep(2)
-            slept += 2
-            str()
+    intercpeted_data = proxy.get_intercept_data()
+    wait = 0
+    while len(intercpeted_data) < 2 and wait < 10:
+        logger.info("Sleeping for 2s...")
+        time.sleep(2)
+        wait += 2
+        intercpeted_data.update(proxy.get_intercept_data())
 
-    obj = proxy.get_intercept_data()
-    operations = json.loads(obj['/DashBoard/GetAccountStatement'])
-    for operation in operations:
-        operation = dict(operation)
-        opid = operation['RefOpe'] + '-' + operation['Dateope']
-        operation['opid'] = opid
-        if opid not in data['operation-ids']:
-            data['operation-ids'].append(opid)
-        data['operations'][opid] = operation
+    # wait, sometimes you need to wait
     try:
-        evolution = json.loads(obj['/DashBoard/GetUserAccountBalanceEvolution'])[0]['BalanceEvolution']
+        operations = json.loads(intercpeted_data['/DashBoard/GetAccountStatement'])
+        for operation in operations:
+            operation = dict(operation)
+            opid = operation['RefOpe'] + '-' + operation['Dateope']
+            operation['opid'] = opid
+            if opid not in data['operation-ids']:
+                data['operation-ids'].append(opid)
+            data['operations'][opid] = operation
     except:
+        logger.error("Error parsing AccountStatement.", exc_info=True)
+
+    try:
+        evolution = json.loads(intercpeted_data['/DashBoard/GetUserAccountBalanceEvolution'])[0]['BalanceEvolution']
+    except:
+        logger.error("Error parsing UserAccountBalanceEvolution.", exc_info=True)
         evolution = []
     for item in evolution:
         data['evolution'][item['Dateope']] = float(item['Solde'].replace(',', '.'))
@@ -82,12 +86,10 @@ def check_factures():
 
 def main(user, password):
     global data, driver, proxy
+
     if args.headless:
         display = get_display()
     proxy = Proxy()
-    proxy.setDaemon(True)
-    proxy.start()
-
     try:
         login(user, password)
         parse_operations()
@@ -100,6 +102,7 @@ def main(user, password):
         if args.headless:
             display.stop()
     # time.sleep(1)
+
 
 if __name__ == "__main__":
     configure_logging(modules=["xaled_selenium","kutils"])
