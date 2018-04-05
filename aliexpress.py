@@ -33,19 +33,20 @@ DEFAULT_PROTECTION_EXTENSION_MSG = "please extend protection for another 30 days
 def update_order(order):
     global data
     data['orders'][order['order_id']] = order
-    if not order['order_id'] in data['order_ids']:
-        data['order_ids'].append(order['order_id'])
+    # if not order['order_id'] in data['order_ids']:
+    #     data['order_ids'].append(order['order_id'])
     data.save()
 
 
 def still_non_finished(order_id):
-    if len(data['order_ids']) == 0:
+    order_ids = sorted(data['orders'].keys(), reverse=True)
+    if len(order_ids) == 0:
         return True
-    if not order_id in data['order_ids']:
+    if not order_id in order_ids:
         return True
-    if len(data['order_ids'][data['order_ids'].index(order_id) + 1:]) == 0:
+    if len(order_ids[order_ids.index(order_id) + 1:]) == 0:
         return True
-    for oi in data['order_ids'][data['order_ids'].index(order_id) + 1:]:
+    for oi in order_ids[order_ids.index(order_id) + 1:]:
         o = data['orders'][oi]
         if o['status'] == 'Awaiting delivery':
             return True
@@ -86,6 +87,7 @@ def parse_orders_page(src):
                 try:
                     # if present, It means, tracking has begun
                     order['tracking_status'] = driver.find_element_by_css_selector('.ui-balloon .event-line-key').text
+                    order['tracking_desc'] = driver.find_element_by_css_selector('.ui-balloon .event-line-desc').text
                 except:
                     # Check for no event which means tracking has nto started or has not begun
                     try:
@@ -94,11 +96,14 @@ def parse_orders_page(src):
                         # If above passed, copy the tracking link and past for manual tracking
                         order['tracking_status'] = "Manual Tracking: " + driver.find_element_by_css_selector(
                             '.ui-balloon .no-event a').get_attribute('href').strip()
+                        order['tracking_desc'] = ""
                     except:
                         order['tracking_status'] = '<Tracking Parse Error>'
+                        order['tracking_desc'] = ""
             except:
                 order['tracking_id'] = '<Error in Parsing Tracking ID>'
                 order['tracking_status'] = '<Tracking Parse Error due to Error in Parsing Tracking ID>'
+                order['tracking_desc'] = ""
                 print("Tracking id retrieval failed for order:" + order['order_id'])
                 pass
             update_order(order)
@@ -221,6 +226,17 @@ def init_driver_(drivertype="Chrome", driver_path="./chromedriver"):
     return driver
 
 
+def resize_string(obj, size):
+    if len(obj) < size:
+        return obj + " "*(size - len(obj))
+    return obj[:size]
+
+def parse_days_left(days_left):
+    try:
+        return " ".join(days_left.split(":")[1].split()[:2])
+    except:
+        return days_left
+
 if __name__ == "__main__":
     configure_logging(modules=['xaled_selenium'])
     additional_arguments = list()
@@ -246,18 +262,28 @@ if __name__ == "__main__":
         tt = parse_days_lefts(o["status_days_left"])
         if 86400 < tt < 14 * 86400:  # 2 weeks
             if args.protection:
-                print("- SENDING PROECTECTION EXTENSION REQUEST FOR ORDER: %s (%s)"% (o['product_list'][0]['title'][:50], o['status_days_left']))
+                print("- SENDING PROECTECTION EXTENSION REQUEST FOR ORDER: #%s %s (%s)"%
+                      (o['order_id'], o['product_list'][0]['title'][:50], o['status_days_left']))
             else:
-                print("- NOT SENDING PROECTECTION EXTENSION REQUEST FOR ORDER: %s (%s)"% (o['product_list'][0]['title'][:50], o['status_days_left']))
+                print("- NOT SENDING PROECTECTION EXTENSION REQUEST FOR ORDER: #%s %s (%s)"%
+                      (o['order_id'], o['product_list'][0]['title'][:50], o['status_days_left']))
         elif 0 < tt <= 86400:
             print("- ORDER ABOUT TO EXPIRE; %s (%s)" % (o['product_list'][0]['title'][:50], o['status_days_left']))
         if o['tracking_status'] == 'Delivered' and o['status'] != 'Finished':
-            print("- ORDER DELIVERED; %s (%s)" % (o['product_list'][0]['title'][:50], o['status_days_left']))
+            print("- ORDER DELIVERED: #%s %s (%s)" %
+                  (o['order_id'], o['product_list'][0]['title'][:50], o['status_days_left']))
 
     if args.verbose:
         print("\nlist of retrieved orders:")
+        print("%s | %s | %s | %s | %s | %s" %
+              (resize_string('order_id', 15), resize_string('product title', 40),
+               resize_string('status', 20), resize_string('days left', 10),
+               resize_string('tracking_status', 25), resize_string('tracking_desc', 25)))
         for o in orders:
-            print("- %s: %s (%s)" % (o['product_list'][0]['title'][:50],o['status'], o['status_days_left']))
+            print("%s | %s | %s | %s | %s | %s" %
+                  (resize_string(o['order_id'], 15), resize_string(o['product_list'][0]['title'], 40),
+                   resize_string(o['status'],20), resize_string(parse_days_left(o['status_days_left']), 10),
+                   resize_string(o['tracking_status'],25), resize_string(o['tracking_desc'],25)))
     driver.quit()
     if args.headless:
         display.stop()
